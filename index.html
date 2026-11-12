@@ -743,6 +743,7 @@ html[data-theme="slate"], html[data-theme="dark-blue"], html[data-theme="dark"] 
 <div class="tr-note" id="tr-exc" style="margin:14px 0"></div>
 <div class="tr-note" style="margin:14px 0">Dates come from Scoutbook rank records (date earned). Ranks with no date are left out; averages only include scouts who have both ranks. Contains minors' names and progress: share only with named people.</div>
 </section>
+    <section class="page" id="page-roster"></section>
     <section class="page" id="page-duty"></section>
     <section class="page" id="page-attendance"></section>
     <section class="page" id="page-howto"><div class="ht">
@@ -1127,6 +1128,7 @@ document.getElementById('tr-c6b').innerHTML='<div data-title-col="0"><table><the
       { id: 'page-overall', label: 'Overall Missing Reqs' },
       { id: 'page-ranks', label: 'Rank-By-Rank Detail' },
       { id: 'page-scout', label: 'Scout Detail' },
+      { id: 'page-roster', label: 'Troop Roster' },
       { id: 'page-duty', label: 'Duty Roster Suggestions' },
       { id: 'page-attendance', label: 'Meeting Attendance' },
       { id: 'page-howto', label: 'How to Use' }
@@ -1236,6 +1238,39 @@ document.getElementById('tr-c6b').innerHTML='<div data-title-col="0"><table><the
 
     function filterScoutsByPatrol(patrolFilter) {
       return (DATA.scouts || []).filter(s => !patrolFilter || s.patrol === patrolFilter);
+    }
+
+    function normalizeContactValue(v) {
+      if (v == null) return '';
+      if (Array.isArray(v)) return v.map(x => String(x || '').trim()).filter(Boolean).join('; ');
+      return String(v).trim();
+    }
+
+    function firstContactValue(scout, keys) {
+      const candidates = [scout, scout?.contact, scout?.contacts, scout?.profile, scout?.demographics, scout?.family, scout?.parent, scout?.guardian];
+      for (const source of candidates) {
+        if (!source || typeof source !== 'object') continue;
+        for (const key of keys) {
+          const val = normalizeContactValue(source[key]);
+          if (val) return val;
+        }
+      }
+      return '';
+    }
+
+    function rosterPhoneCell(value) {
+      const shown = normalizeContactValue(value);
+      if (!shown) return '<span class="muted">—</span>';
+      const digits = shown.replace(/[^\d+]/g, '');
+      if (!digits) return safe(shown);
+      return `<a href="tel:${safe(digits)}">${safe(shown)}</a>`;
+    }
+
+    function rosterEmailCell(value) {
+      const shown = normalizeContactValue(value);
+      if (!shown) return '<span class="muted">—</span>';
+      if (!shown.includes('@')) return safe(shown);
+      return `<a href="mailto:${safe(shown)}">${safe(shown)}</a>`;
     }
 
     function getMissingRequirements(requirements) {
@@ -4395,6 +4430,57 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { classify
       render();
     }
 
+    function renderRosterPage() {
+      const el = document.getElementById('page-roster');
+      const patrols = getPatrolOptions();
+      el.innerHTML = `
+        <h2>Troop Roster</h2>
+        <div class="small">Name and contact details for scouts. Contact fields show when they are present in this data snapshot.</div>
+        <div class="controls">
+          <div class="field"><label for="rosterPatrolFilter">Patrol</label><select id="rosterPatrolFilter"><option value="">All</option>${patrols.map(p => `<option value="${safe(p)}">${safe(p)}</option>`).join('')}</select></div>
+        </div>
+        <div class="small" id="rosterCount"></div>
+        <div id="rosterTable" class="table-wrap"></div>
+      `;
+
+      const q = id => document.getElementById(id);
+      const render = () => {
+        const patrol = String(q('rosterPatrolFilter').value || '');
+        const scouts = filterScoutsByPatrol(patrol)
+          .slice()
+          .sort((a, b) => formatLastFirst(a).localeCompare(formatLastFirst(b)));
+
+        q('rosterCount').textContent = `Showing ${scouts.length} scout${scouts.length === 1 ? '' : 's'}${patrol ? ` in ${patrol}` : ''}.`;
+        q('rosterTable').innerHTML = `<table>
+          <thead><tr>
+            <th>Scout name</th>
+            <th>Patrol</th>
+            <th>Home phone</th>
+            <th>Scout phone</th>
+            <th>Scout email</th>
+            <th>Parent email</th>
+          </tr></thead>
+          <tbody>${scouts.map(s => {
+            const homePhone = firstContactValue(s, ['homePhone', 'phoneHome', 'home_phone', 'homeTelephone', 'homeNumber']);
+            const scoutPhone = firstContactValue(s, ['scoutPhone', 'phoneNumber', 'mobilePhone', 'cellPhone', 'mobile', 'phone']);
+            const scoutEmail = firstContactValue(s, ['scoutEmail', 'emailAddress', 'memberEmail', 'email']);
+            const parentEmail = firstContactValue(s, ['parentEmail', 'guardianEmail', 'familyEmail', 'contactEmail', 'parent1Email', 'parent2Email']);
+            return `<tr>
+              <td>${scoutLink(s, formatLastFirst(s))}</td>
+              <td>${safe(s.patrol || '—')}</td>
+              <td>${rosterPhoneCell(homePhone)}</td>
+              <td>${rosterPhoneCell(scoutPhone)}</td>
+              <td>${rosterEmailCell(scoutEmail)}</td>
+              <td>${rosterEmailCell(parentEmail)}</td>
+            </tr>`;
+          }).join('') || '<tr><td colspan="6">No scouts match this patrol filter.</td></tr>'}</tbody>
+        </table>`;
+      };
+
+      el.addEventListener('change', e => { if (e.target && e.target.id === 'rosterPatrolFilter') render(); });
+      render();
+    }
+
 
     const DUTY_ROSTER_PATTERNS = [
       /duty roster/i,
@@ -6646,6 +6732,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { buildAdv
     renderRankDetailsPage();
     renderTrailPage();
     renderScoutPage();
+    renderRosterPage();
     renderMeritBadgePage();
     renderPlanPage();
     renderActivitiesPage();
