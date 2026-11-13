@@ -6765,6 +6765,29 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { buildAdv
       const t = todayIso();
       const records = getSignoffRecords().filter(r => scoutIds.has(String(r.scout.userId)));
       const within = days => records.filter(r => r.date >= isoAddDays(t, -days) && r.date <= t).length;
+      const attendanceView = (DATA.participation && Array.isArray(DATA.participation.events))
+        ? buildAttendanceYear({ participation: DATA.participation, scouts: DATA.scouts || [], today: t })
+        : null;
+      const attendanceRows = attendanceView
+        ? attendanceView.rows
+          .filter(r => scoutIds.has(String(r.id)))
+          .filter(r => r.listed > 0 || (r.trips && r.trips.listed > 0))
+          .sort((a, b) => {
+            const ap = a.percent == null ? 101 : a.percent;
+            const bp = b.percent == null ? 101 : b.percent;
+            const at = a.trips && a.trips.percent != null ? a.trips.percent : 101;
+            const bt = b.trips && b.trips.percent != null ? b.trips.percent : 101;
+            return ap - bp || at - bt || byName(a.scout, b.scout);
+          })
+        : [];
+      const attRows = attendanceRows.slice(0, 7).map(r => ({
+        scout: r.scout,
+        meetingsPct: r.percent,
+        meetingsShare: r.listed ? `${r.attended}/${r.listed}` : '\u2014',
+        tripsPct: r.trips ? r.trips.percent : null,
+        tripsShare: r.trips && r.trips.listed ? `${r.trips.attended}/${r.trips.listed}` : '\u2014',
+        trend: r.trend ? r.trend.direction : null
+      }));
 
       const ladder = ['Scout', 'Tenderfoot', 'Second Class', 'First Class', 'Star Scout', 'Life Scout', 'Eagle Scout'];
       const rankCounts = new Map(ladder.map(n => [n, 0]));
@@ -6779,6 +6802,10 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { buildAdv
         badgePairs: badges.reduce((n, b) => n + b.scouts.length, 0), nearest,
         atGoal: nights.filter(n => n >= goal).length,
         signed30: within(30), signed90: within(90),
+        attMeetings: attendanceView ? attendanceView.counts.meetings : 0,
+        attFrom: attendanceView ? attendanceView.from : null,
+        attRows,
+        attTotalRows: attendanceRows.length,
         rankCounts: ladder.map(n => ({ name: n, n: rankCounts.get(n) })), unranked
       };
     }
@@ -6797,14 +6824,13 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { buildAdv
         const m = overviewModel(patrolFilter);
         const dutyRowsAll = getDutyRosterRows(patrolFilter);
         const dutyRows = dutyRowsAll.slice(0, 7).map(r => `<li class="ov-row"><span class="mono">${safe(r.rankName)} ${safe(r.number)}</span><span class="ov-cut small" title="${safe(r.text)}">${safe(r.text)}</span><b>${r.count} scouts</b></li>`);
-        const att = DATA.attendance;
-        const attMeetings = Array.isArray(att?.meetings) ? att.meetings.length : 0;
+        const attMeetings = m.attMeetings;
         const tiles = [
           { go: 'page-aging', num: m.red, tone: m.red ? 'bad' : 'good', label: `records over ${m.danger} days old`, note: `${m.yellow} more over ${m.warn} days` },
           { go: 'page-overall', num: m.gaps.length, tone: m.gaps.length ? 'warn' : 'good', label: 'common requirement gaps', note: 'Scout through First Class' },
           { go: 'page-ranks', num: m.readyAll.length, tone: m.readyAll.length ? 'good' : '', label: 'ready for conference or board', note: `${m.closest.length} closest scouts highlighted` },
           { go: 'page-duty', num: dutyRowsAll.length, tone: dutyRowsAll.length ? '' : 'good', label: 'duty-roster requirement matches', note: 'cooking, shopping, patrol jobs' },
-          { go: 'page-attendance', num: attMeetings, tone: attMeetings ? '' : 'warn', label: 'meetings with attendance data', note: attMeetings ? `since ${safe(att?.from || 'program year start')}` : 'no meeting attendance data yet' },
+          { go: 'page-attendance', num: attMeetings, tone: attMeetings ? '' : 'warn', label: 'meetings with attendance data', note: attMeetings ? `since ${safe(m.attFrom || 'program year start')}` : 'no meeting attendance data yet' },
           { go: 'page-scout', num: m.scouts, tone: '', label: 'scouts in current view', note: patrolFilter ? patrolFilter : 'all patrols' }
         ];
         const tilesHtml = tiles.map(t => `<button type="button" class="ov-tile" data-goto="${t.go}" ${t.extra || ''}><span class="ov-num${t.tone ? ` tone-${t.tone}` : ''}">${safe(t.num)}</span><span class="ov-label">${safe(t.label)}</span><span class="ov-note">${safe(t.note)}</span></button>`).join('');
@@ -6813,11 +6839,15 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { buildAdv
         const closestRows = m.closest.map(c => `<li class="ov-row b"><span>${nameBtn(c.need.scout)}</span><span class="age-cell">${barHtml(c.pct, c.pct >= 0.75 ? 'good' : '')} <b>${pctLabel(c.pct)}</b></span><span class="ov-cut small" title="${safe(`${c.need.rankName}: ${c.step ? `${c.step.head}. ${c.step.why}` : ''}`)}"><b>${safe(RANK_SHORT[c.need.rankName] || c.need.rankName)}</b>${c.step ? `: ${safe(c.step.head)}` : ''}</span></li>`);
         const gapRows = m.gaps.map(g => `<li class="ov-row"><span class="mono">${safe(g.rankName)} ${safe(g.number)}</span><span class="ov-cut small" title="${safe(g.text)}">${safe(g.text)}</span><b>${g.count} scouts</b></li>`);
         const scoutRows = m.closest.slice(0, 7).map(c => `<li class="ov-row b"><span>${nameBtn(c.need.scout)}</span><span class="ov-cut small">${safe(c.need.rankName)}</span><b>${pctLabel(c.pct)}</b></li>`);
+        const trendCell = t => t === 'up' ? '<span class="tag good">\u25B2 Up</span>' : t === 'down' ? '<span class="tag bad">\u25BC Down</span>' : t === 'steady' ? '<span class="muted">Steady</span>' : '<span class="muted">\u2014</span>';
         const attBody = attMeetings
-          ? `<ul class="ov-list" style="--cols:minmax(0, 1fr) auto">
-              <li class="ov-row two"><span class="small">Meetings with attendance</span><span><b>${attMeetings}</b> ${attMeetings === 1 ? 'meeting' : 'meetings'}</span></li>
-              <li class="ov-row one"><span class="ov-note ov-cut">Open Meeting Attendance for per-scout and per-meeting detail.</span></li>
-            </ul>`
+          ? `<div class="table-wrap">
+              <table>
+                <thead><tr><th>Scout</th><th>Meetings</th><th>Trips</th><th>Trend</th></tr></thead>
+                <tbody>${m.attRows.map(r => `<tr><td>${nameBtn(r.scout)}</td><td><b>${r.meetingsPct == null ? '\u2014' : `${r.meetingsPct}%`}</b><div class="small">${safe(r.meetingsShare)}</div></td><td><b>${r.tripsPct == null ? '\u2014' : `${r.tripsPct}%`}</b><div class="small">${safe(r.tripsShare)}</div></td><td>${trendCell(r.trend)}</td></tr>`).join('') || '<tr><td colspan="4">No scout attendance rows in this view yet.</td></tr>'}</tbody>
+              </table>
+            </div>
+            <div class="small ov-note">Showing ${m.attRows.length} of ${m.attTotalRows} scouts in this view. Open Meeting Attendance for the full table and event detail.</div>`
           : '<div class="ov-empty small">No meeting attendance data is available in this snapshot.</div>';
 
         const strip = `<div class="ov-strip"><b>Troop by rank</b>${m.rankCounts.map(r => `<span class="ov-rank${r.n ? '' : ' zero'}"><span>${safe(RANK_SHORT[r.name] || r.name)}</span><b>${r.n}</b></span>`).join('')}${m.unranked ? `<span class="ov-rank"><span>Not yet ranked</span><b>${m.unranked}</b></span>` : ''}<span class="ov-spacer"></span><span>${m.signed30} signed off in 30 days (${m.signed90} in 90)</span>${goBtn('page-overall', 'Overall Missing Reqs')}</div>`;
