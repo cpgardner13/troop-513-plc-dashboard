@@ -4485,27 +4485,24 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { classify
     }
 
 
-    const DUTY_ROSTER_PATTERNS = [
-      /duty roster/i,
-      /cook/i,
-      /meal/i,
-      /menu/i,
-      /food/i,
-      /shop(ping)?/i,
-      /patrol/i,
-      /cleanup|clean up/i,
-      /dish/i,
-      /fire|stove|fuel/i,
-      /camp kitchen/i
-    ];
+    const DUTY_ROSTER_REQUIREMENTS = {
+      2: new Set(['2a', '2b']),                  // Tenderfoot
+      3: new Set(['1c', '2c', '2d']),            // Second Class
+      4: new Set(['2a', '2b', '2c', '2d', '2e']) // First Class
+    };
+
+    function dutyReqKey(number) {
+      return String(number || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    }
 
     function getDutyRosterRows(patrolFilter = '') {
       const rows = [];
       for (const rankId of [1, 2, 3, 4]) {
         const rank = getRankMissing(rankId, patrolFilter);
+        const keep = DUTY_ROSTER_REQUIREMENTS[rankId];
+        if (!keep) continue;
         for (const req of rank.requirements) {
-          const text = String(req.text || '');
-          if (!DUTY_ROSTER_PATTERNS.some(p => p.test(text))) continue;
+          if (!keep.has(dutyReqKey(req.number))) continue;
           rows.push({
             key: `${rankId}|${req.number}|${req.text}`,
             rankName: rank.rankName,
@@ -4524,7 +4521,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { classify
       const patrols = getPatrolOptions();
       el.innerHTML = `
         <h2>Duty Roster Suggestions</h2>
-        <div class="small">Missing Scout through First Class requirements that match common patrol duty-roster jobs (meal planning, shopping, cooking, cleanup, and similar patrol tasks).</div>
+        <div class="small">Missing requirements from this fixed duty-roster set: Tenderfoot (2a, 2b), Second Class (1c, 2c, 2d), and First Class (2a, 2b, 2c, 2d, 2e).</div>
         <div class="controls">
           <div class="field"><label for="dutyPatrolFilter">Patrol</label><select id="dutyPatrolFilter"><option value="">All</option>${patrols.map(p => `<option value="${safe(p)}">${safe(p)}</option>`).join('')}</select></div>
           <div class="field"><label for="dutyReqFilter">Requirement contains</label><input id="dutyReqFilter" type="text" placeholder="keyword or req #" /></div>
