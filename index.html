@@ -350,11 +350,15 @@ html[data-theme="slate"], html[data-theme="dark-blue"], html[data-theme="dark"] 
     .ov-row.two { grid-template-columns: auto minmax(0, 1fr); }
     .ov-row.one { grid-template-columns: minmax(0, 1fr); }
     .ov-row .ov-names .link-btn { display: inline; }
+    .ov-att-table { margin-top: 2px; }
+    .ov-att-table table th, .ov-att-table table td { padding: 4px 6px; font-size: 0.82rem; line-height: 1.2; }
+    .ov-att-table .small { margin-top: 1px; font-size: 0.72rem; }
+    .ov-att-trim > tr:nth-child(n+7) { display: none; }
     @media (min-width: 701px) and (max-width: 1100px) { .ov-trim > .ov-row:nth-child(n+6) { display: none; } }
-    @media (min-width: 1101px) and (max-height: 759px) { .ov-trim > .ov-row:nth-child(n+7) { display: none; } }
-    @media (min-width: 1101px) and (max-height: 709px) { .ov-trim > .ov-row:nth-child(n+6) { display: none; } }
-    @media (min-width: 1101px) and (max-height: 659px) { .ov-trim > .ov-row:nth-child(n+5) { display: none; } .ov-row.st3 { display: none; } }
-    @media (min-width: 1101px) and (max-height: 609px) { .ov-trim > .ov-row:nth-child(n+4) { display: none; } .ov-row.st2 { display: none; } }
+    @media (min-width: 1101px) and (max-height: 759px) { .ov-trim > .ov-row:nth-child(n+7) { display: none; } .ov-att-trim > tr:nth-child(n+6) { display: none; } }
+    @media (min-width: 1101px) and (max-height: 709px) { .ov-trim > .ov-row:nth-child(n+6) { display: none; } .ov-att-trim > tr:nth-child(n+5) { display: none; } }
+    @media (min-width: 1101px) and (max-height: 659px) { .ov-trim > .ov-row:nth-child(n+5) { display: none; } .ov-row.st3 { display: none; } .ov-att-trim > tr:nth-child(n+4) { display: none; } }
+    @media (min-width: 1101px) and (max-height: 609px) { .ov-trim > .ov-row:nth-child(n+4) { display: none; } .ov-row.st2 { display: none; } .ov-att-trim > tr:nth-child(n+3) { display: none; } }
     .ov-empty { padding: 3px 0; font-size: 0.88rem; }
     .ov-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 8px; padding: 5px 12px; border: 1px solid var(--cp-border); border-radius: 0.625rem; background: var(--cp-surface-soft); font-size: 0.86rem; }
     .ov-rank { display: inline-flex; align-items: baseline; gap: 5px; padding: 1px 9px; border: 1px solid var(--cp-border); border-radius: 999px; background: var(--cp-surface); }
@@ -383,6 +387,7 @@ html[data-theme="slate"], html[data-theme="dark-blue"], html[data-theme="dark"] 
       .ov-row.c > :nth-child(3) { grid-column: 3; grid-row: 1; }
       .ov-row.c { min-height: 36px; }
       .ov-row .link-btn, .ov-panel header .link-btn { display: flex; align-items: center; min-height: 36px; }
+      .ov-att-trim > tr:nth-child(n+4) { display: none; }
       .prio-list { grid-template-columns: minmax(0, 1fr); }
     }
     .req-extra { margin-top: 3px; }
@@ -6780,7 +6785,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { buildAdv
             return ap - bp || at - bt || byName(a.scout, b.scout);
           })
         : [];
-      const attRows = attendanceRows.slice(0, 7).map(r => ({
+      const attRows = attendanceRows.slice(0, 6).map(r => ({
         scout: r.scout,
         meetingsPct: r.percent,
         meetingsShare: r.listed ? `${r.attended}/${r.listed}` : '\u2014',
@@ -6841,13 +6846,12 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { buildAdv
         const scoutRows = m.closest.slice(0, 7).map(c => `<li class="ov-row b"><span>${nameBtn(c.need.scout)}</span><span class="ov-cut small">${safe(c.need.rankName)}</span><b>${pctLabel(c.pct)}</b></li>`);
         const trendCell = t => t === 'up' ? '<span class="tag good">\u25B2 Up</span>' : t === 'down' ? '<span class="tag bad">\u25BC Down</span>' : t === 'steady' ? '<span class="muted">Steady</span>' : '<span class="muted">\u2014</span>';
         const attBody = attMeetings
-          ? `<div class="table-wrap">
+          ? `<div class="table-wrap ov-att-table">
               <table>
                 <thead><tr><th>Scout</th><th>Meetings</th><th>Trips</th><th>Trend</th></tr></thead>
-                <tbody>${m.attRows.map(r => `<tr><td>${nameBtn(r.scout)}</td><td><b>${r.meetingsPct == null ? '\u2014' : `${r.meetingsPct}%`}</b><div class="small">${safe(r.meetingsShare)}</div></td><td><b>${r.tripsPct == null ? '\u2014' : `${r.tripsPct}%`}</b><div class="small">${safe(r.tripsShare)}</div></td><td>${trendCell(r.trend)}</td></tr>`).join('') || '<tr><td colspan="4">No scout attendance rows in this view yet.</td></tr>'}</tbody>
+                <tbody class="ov-att-trim">${m.attRows.map(r => `<tr><td>${nameBtn(r.scout)}</td><td><b>${r.meetingsPct == null ? '\u2014' : `${r.meetingsPct}%`}</b><div class="small">${safe(r.meetingsShare)}</div></td><td><b>${r.tripsPct == null ? '\u2014' : `${r.tripsPct}%`}</b><div class="small">${safe(r.tripsShare)}</div></td><td>${trendCell(r.trend)}</td></tr>`).join('') || '<tr><td colspan="4">No scout attendance rows in this view yet.</td></tr>'}</tbody>
               </table>
-            </div>
-            <div class="small ov-note">Showing ${m.attRows.length} of ${m.attTotalRows} scouts in this view. Open Meeting Attendance for the full table and event detail.</div>`
+            </div>`
           : '<div class="ov-empty small">No meeting attendance data is available in this snapshot.</div>';
 
         const strip = `<div class="ov-strip"><b>Troop by rank</b>${m.rankCounts.map(r => `<span class="ov-rank${r.n ? '' : ' zero'}"><span>${safe(RANK_SHORT[r.name] || r.name)}</span><b>${r.n}</b></span>`).join('')}${m.unranked ? `<span class="ov-rank"><span>Not yet ranked</span><b>${m.unranked}</b></span>` : ''}<span class="ov-spacer"></span><span>${m.signed30} signed off in 30 days (${m.signed90} in 90)</span>${goBtn('page-overall', 'Overall Missing Reqs')}</div>`;
